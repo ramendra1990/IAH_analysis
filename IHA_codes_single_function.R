@@ -102,7 +102,54 @@ IHA_Group02_Analysis<-function(data=dailyQ.matrix){
   return(result_IHA_group2)
 }
 # =====
-# ===== 
+# ===== IAH Group 3: Julian Dates Annual maxima Flow and Annual Minima Flow
+IHA_Group03_Analysis<-function(data=dailyQ.matrix){
+  #' Calculates the julian date of annual maxima / minima flow condition.
+  #' 2 IAH parameters (group3) (Richter et al., 1996) will be generated through IAH_Group3 function
+  #' @param data A matrix with daily flow data.
+  #' @return julian date of annual maxima / minima flow of the daily flow data in `data`.
+  #' @examples
+  #' 
+  
+  n_yr<-length(unique(data[,1]))
+  wy_data_yrs<-unique(data[,1])
+  result_group3_timing <- data.frame(matrix(NA, ncol = 2, nrow = n_yr))
+  rownames(result_IHA_group2) <-wy_data_yrs
+  colnames(result_group3_timing)<-c("DOWYMax", "DOWYMin")
+  
+  # We need to modify/restructure the daily flow data so as to account for any leap year
+  reshape_dailyQ <- matrix(NA,84,365)
+  rownames(reshape_dailyQ) <- wy_data_yrs
+  colnames(reshape_dailyQ) <- 1:365
+  
+  for (i in 1:length(unique_years)){
+    Q_current_year <- data[data[, 1] == wy_data_yrs[i], ]
+    if(isLeapYear(Q_current_year[1,1])==T){
+      feb_28_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 28)
+      feb_29_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 29)
+      # Calculate the average for, replace the 28th Feb row with average and remove the 29th Feb row
+      average_feb2829 <- mean(c(Q_current_year[feb_28_row, 6], Q_current_year[feb_29_row, 6]))
+      Q_current_year[feb_28_row, 6] <- average_feb2829
+      Q_current_year <- Q_current_year[-feb_29_row, ]
+      reshape_dailyQ[i, ] <- Q_current_year [ ,6]
+    }else{
+      reshape_dailyQ[i, ] <- Q_current_year [ ,6]
+    }
+  }
+  # Main code for estimating the dowy for annual maxima and minima
+  for (i in 1:n_yr) {
+    # Extract flow values for the current year
+    flowdata_year_i <- reshape_dailyQ[i, ] 
+    # Find the index of the maximum value in the row
+    max_index <- which.max(flowdata_year_i)
+    DOWY_max_index <- max(which.max(flowdata_year_i))
+    min_index <- which.min(flowdata_year_i)
+    DOWY_min_index <- max(which.min(flowdata_year_i))
+    result_group3_timing$DOWYMax[i] <- DOWY_max_index
+    result_group3_timing$DOWYMin[i] <- DOWY_min_index
+  }
+  return(result_group3_timing)
+}
 # Construction of the all the IHA functions complete
 
 
