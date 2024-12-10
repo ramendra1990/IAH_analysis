@@ -1,0 +1,108 @@
+## USGS daily average discharge data
+## Packages used: dataRetrieval and tis
+# Data retrieval in raw form for Sheepscot river ----
+library(dataRetrieval)
+# Sheepscot River at North Whitefield, Maine
+site_id <- "01038000"
+startDate <- "1938-10-01"
+endDate <- "2022-09-30"
+pCode <- "00060"
+rawDailyQ <- readNWISdv(site_id, pCode, startDate, endDate) # raw flow data from 1938 1st Oct to 2022 30th Sept
+
+# Create a Daily discharge matrix from the rawQ ----
+n1 <- dim(rawDailyQ)[1]
+dailyQ.matrix<-matrix(NA,n1,6)
+colnames(dailyQ.matrix)<-c("WY","Year","Month","Day","DOWY","Q")
+dailyQ.matrix[,6]<-as.vector(rawDailyQ[,4])
+dailyQ.matrix[,1]<-calcWaterYear(rawDailyQ[,3])
+# Filling up day, month, year column in the daily Q matrix
+for(k in 1:n1){
+  print(k)
+  a1<-strsplit(as.character(rawDailyQ[k,3]),"-")
+  dailyQ.matrix[k,2]<-as.numeric(a1[[1]][1])
+  dailyQ.matrix[k,3]<-as.numeric(a1[[1]][2])
+  dailyQ.matrix[k,4]<-as.numeric(a1[[1]][3])
+}
+# For the 5th column, i.e. day of water year (dowy), specific to USA
+library(tis) 
+# dowy
+mo.days<-c(0,cumsum(c(31,30,31,31,28,31,30,31,30,31,31,30))[1:11])[c(4:12,1:3)]
+mo.days.l<-c(0,cumsum(c(31,30,31,31,29,31,30,31,30,31,31,30))[1:11])[c(4:12,1:3)]
+############################################################
+#
+for(k in 1:n1){
+  print(k)
+  if(isLeapYear(dailyQ.matrix[k,1])==T) {dailyQ.matrix[k,5]<-(mo.days.l[dailyQ.matrix[k,3]]+dailyQ.matrix[k,4])}
+  else {dailyQ.matrix[k,5]<-(mo.days[dailyQ.matrix[k,3]]+dailyQ.matrix[k,4])}
+}
+#### Matrix construction completed!
+
+# Construct IAH functions ----
+# ===== IHA Group 1 : Monthly mean flow
+IHA_Group01_Analysis<-function(data=dailyQ.matrix){
+  #' Calculates the Monthly mean flow for all water years.
+  #' 12 IAH parameters (group1) (Richter et al., 1996) will be generated through IAH_Group1 function
+  #' @param data A matrix with daily flow data.
+  #' @return The monthly mean of the daily flow data in `data`.
+  #' @examples
+  #' result_monthlymean <- IHA_Group01_Analysis(data = dailyQ.matrix)
+
+  dim.data<-dim(data)
+  n_yr<-length(unique(data[,1]))
+  wy_data_yrs<-unique(data[,1])
+  result_monthlymean <- data.frame(matrix(NA, ncol = 12, nrow = n_yr))
+  rownames(result_monthlymean)<-wy_data_yrs
+  colnames(result_monthlymean)<-c(10,11,12,1,2,3,4,5,6,7,8,9)
+  mo_seq<-c(10:12,1:9)
+  
+  for (i in 1:length(wy_data_yrs)) 
+    {for (k in 1:12){
+      result_monthlymean[i,k]<-mean(data[data[,1]==wy_data_yrs[i] & data[,3]==mo_seq[k],6], na.rm = TRUE)
+    }
+  }
+  return(result_monthlymean)
+}
+# =====
+# ===== IHA Group 2 : Annual Maxima of 1 day means, 3 day means, 7 day means, 30 day means, 90 day means flow
+IHA_Group02_Analysis<-function(data=dailyQ.matrix){
+  #' Calculates the max (min) n-day moving mean annual flow for all water years.
+  #' 10 IAH parameters (group2) (Richter et al., 1996) will be generated through IAH_Group2 function
+  #' @param data A matrix with daily flow data.
+  #' @return n-day annual maxima (minima) of the daily flow data in `data`.
+  #' @examples
+  #' 
+  
+  library(zoo) # for rollapply function to calculate moving average
+  dim.data<-dim(data)
+  n_yr<-length(unique(data[,1]))
+  wy_data_yrs<-unique(data[,1])
+  result_IHA_group2 <- data.frame(matrix(NA, ncol = 10, nrow = n_yr))
+  rownames(result_IHA_group2) <-wy_data_yrs
+  colnames(result_IHA_group2) <-c("Max_1daymean", "Max_3daymean", "Max_7daymean", "Max_30daymean", "Max_90daymean", 
+                                  "Min_1daymean", "Min_3daymean", "Min_7daymean", "Min_30daymean", "Min_90daymean")
+  for (i in 1:n_yr){
+    flowdata_year_i <- dailyQ.matrix[dailyQ.matrix[,1]==wy_data_yrs[i], 6] # subsetting the 6th column data (flow data) for the ith water year
+    # Calculating moving average with the rollapply function from the zoo library for different width
+    subset_3day <- rollapply(flowdata_year_i, width = 3, FUN = mean, partial = TRUE, align = "right")
+    subset_7day <- rollapply(flowdata_year_i, width = 7, FUN = mean, partial = TRUE, align = "right")
+    subset_30day <- rollapply(flowdata_year_i, width = 30, FUN = mean, partial = TRUE, align = "right")
+    subset_90day <- rollapply(flowdata_year_i, width = 90, FUN = mean, partial = TRUE, align = "right")
+    # Fill up the result matrix by maximum/minimum values of the moving averaged flow value for the ith water year
+    result_IHA_group2$Max_1daymean[i] <- max(flowdata_year_i)
+    result_IHA_group2$Max_3daymean[i] <- max(subset_3day)
+    result_IHA_group2$Max_7daymean[i] <- max(subset_7day)
+    result_IHA_group2$Max_30daymean[i] <- max(subset_30day)
+    result_IHA_group2$Max_90daymean[i] <- max(subset_90day)
+    result_IHA_group2$Max_1daymean[i] <- min(flowdata_year_i)
+    result_IHA_group2$Max_3daymean[i] <- min(subset_3day)
+    result_IHA_group2$Max_7daymean[i] <- min(subset_7day)
+    result_IHA_group2$Max_30daymean[i] <- min(subset_30day)
+    result_IHA_group2$Max_90daymean[i] <- min(subset_90day)
+  }
+  return(result_IHA_group2)
+}
+# =====
+# ===== 
+# Construction of the all the IHA functions complete
+
+
