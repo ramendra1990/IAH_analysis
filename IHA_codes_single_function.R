@@ -38,7 +38,7 @@ for(k in 1:n1){
 #### Matrix construction completed!
 
 # Construct IAH functions ----
-# ===== IHA Group 1 : Monthly mean flow
+# IHA Group 1 : Monthly mean flow ===== 
 IHA_Group01_Analysis<-function(data=dailyQ.matrix){
   #' Calculates the Monthly mean flow for all water years.
   #' 12 IAH parameters (group1) (Richter et al., 1996) will be generated through IAH_Group1 function
@@ -62,8 +62,8 @@ IHA_Group01_Analysis<-function(data=dailyQ.matrix){
   }
   return(result_monthlymean)
 }
-# =====
-# ===== IHA Group 2 : Annual Maxima of 1 day means, 3 day means, 7 day means, 30 day means, 90 day means flow
+
+# IHA Group 2 : Annual Maxima of 1 day means, 3 day means, 7 day means, 30 day means, 90 day means flow ===== 
 IHA_Group02_Analysis<-function(data=dailyQ.matrix){
   #' Calculates the max (min) n-day moving mean annual flow for all water years.
   #' 10 IAH parameters (group2) (Richter et al., 1996) will be generated through IAH_Group2 function
@@ -101,8 +101,8 @@ IHA_Group02_Analysis<-function(data=dailyQ.matrix){
   }
   return(result_IHA_group2)
 }
-# =====
-# ===== IAH Group 3: Julian Dates Annual maxima Flow and Annual Minima Flow
+
+# IAH Group 3: Julian Dates Annual maxima Flow and Annual Minima Flow ===== 
 IHA_Group03_Analysis<-function(data=dailyQ.matrix){
   #' Calculates the julian date of annual maxima / minima flow condition.
   #' 2 IAH parameters (group3) (Richter et al., 1996) will be generated through IAH_Group3 function
@@ -118,7 +118,7 @@ IHA_Group03_Analysis<-function(data=dailyQ.matrix){
   colnames(result_group3_timing)<-c("DOWYMax", "DOWYMin")
   
   # We need to modify/restructure the daily flow data so as to account for any leap year
-  reshape_dailyQ <- matrix(NA,84,365)
+  reshape_dailyQ <- matrix(NA,n_yr,365)
   rownames(reshape_dailyQ) <- wy_data_yrs
   colnames(reshape_dailyQ) <- 1:365
   
@@ -149,6 +149,101 @@ IHA_Group03_Analysis<-function(data=dailyQ.matrix){
     result_group3_timing$DOWYMin[i] <- DOWY_min_index
   }
   return(result_group3_timing)
+}
+
+# IAH Group 4: Magnitude and Frequency of high and Low flow ===== 
+IHA_Group04_Analysis<-function(data=dailyQ.matrix){
+  #' Calculates the frequency and mean duration for high/low flow pulses.
+  #' High and low threshold are 75th and 25th annual flow respectively.
+  #' 4 IAH parameters (group3) (Richter et al., 1996) will be generated through IAH_Group4 function
+  #' @param data A matrix with daily flow data.
+  #' @return Frequency and mean duration of high and low pulses of the daily flow data in `data`.
+  #' @examples
+  #'
+  
+  n_yr<-length(unique(data[,1]))
+  wy_data_yrs<-unique(data[,1])
+  result_group3_timing <- data.frame(matrix(NA, ncol = 2, nrow = n_yr))
+  rownames(result_IHA_group2) <-wy_data_yrs
+  colnames(result_group3_timing)<-c("DOWYMax", "DOWYMin")
+  
+  # We need to modify/restructure the daily flow data so as to account for any leap year
+  reshape_dailyQ <- matrix(NA,n_yr,365)
+  rownames(reshape_dailyQ) <- wy_data_yrs
+  colnames(reshape_dailyQ) <- 1:365
+  
+  for (i in 1:length(unique_years)){
+    Q_current_year <- data[data[, 1] == wy_data_yrs[i], ]
+    if(isLeapYear(Q_current_year[1,1])==T){
+      feb_28_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 28)
+      feb_29_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 29)
+      # Calculate the average for, replace the 28th Feb row with average and remove the 29th Feb row
+      average_feb2829 <- mean(c(Q_current_year[feb_28_row, 6], Q_current_year[feb_29_row, 6]))
+      Q_current_year[feb_28_row, 6] <- average_feb2829
+      Q_current_year <- Q_current_year[-feb_29_row, ]
+      reshape_dailyQ[i, ] <- Q_current_year [ ,6]
+    }else{
+      reshape_dailyQ[i, ] <- Q_current_year [ ,6]
+    }
+  }
+  # Main code for estimating the frequency and mean duration for annual high (low) flow pulses
+  result_group4 <- data.frame(matrix(NA, ncol = 4, nrow = n_yr))
+  rownames(result_group4) <- wy_data_yrs
+  colnames(result_group4) <- c("MeanD_HFlow", "Freq_HFlow", "MeanD_LFlow", "Freq_LFlow")
+  
+  for (i in 1:84) {
+    # Extract flow values for the current year
+    flowdata_year_i <- reshape_dailyQ[i, ]  
+    
+    #Find the quantiles (25th, and 75th percentiles) of the vector
+    quant_values_year_i <- quantile(flowdata_year_i, probs = c(0.25,0.75))
+    q75 <- quant_values_year_i[2]
+    q25 <- quant_values_year_i[1]
+    
+    # For high flow pulses
+    list_high_pulses <- NULL
+    j <- 1
+    while (j <= length(flowdata_year_i)){
+      if (flowdata_year_i[j] >= q75){
+        k <- 1
+        j <- j + 1
+        while (flowdata_year_i[j] >= q75 & j <= length(flowdata_year_i)){
+          k <- k + 1
+          j <- j + 1
+        }
+        list_high_pulses <- cbind(list_high_pulses, k)
+      }else{
+        j <- j + 1
+      }
+    }
+    result_group4$MeanD_HFlow[i] <- mean(list_high_pulses)
+    result_group4$Freq_HFlow[i] <- length(list_high_pulses)
+    
+    # For low flow pulses
+    list_low_pulses <- NULL
+    j <- 1
+    while (j <= length(flowdata_year_i)){
+      if (flowdata_year_i[j] <= q25){
+        k <- 1
+        j <- j + 1
+        while (flowdata_year_i[j] <= q25 & j <= length(flowdata_year_i)){
+          k <- k + 1
+          j <- j + 1
+        }
+        list_low_pulses <- cbind(list_low_pulses, k)
+      }else{
+        j <- j + 1
+      }
+    }
+    result_group4$MeanD_LFlow[i] <- mean(list_low_pulses)
+    result_group4$Freq_LFlow[i] <- length(list_low_pulses)
+  }
+  return(result_group4)
+}
+# =====
+# IAH Group 5: ===== 
+IHA_Group04_Analysis<-function(data=dailyQ.matrix){
+  
 }
 # Construction of the all the IHA functions complete
 
