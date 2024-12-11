@@ -28,14 +28,35 @@ library(tis)
 # dowy
 mo.days<-c(0,cumsum(c(31,30,31,31,28,31,30,31,30,31,31,30))[1:11])[c(4:12,1:3)]
 mo.days.l<-c(0,cumsum(c(31,30,31,31,29,31,30,31,30,31,31,30))[1:11])[c(4:12,1:3)]
-############################################################
-#
 for(k in 1:n1){
   print(k)
   if(isLeapYear(dailyQ.matrix[k,1])==T) {dailyQ.matrix[k,5]<-(mo.days.l[dailyQ.matrix[k,3]]+dailyQ.matrix[k,4])}
   else {dailyQ.matrix[k,5]<-(mo.days[dailyQ.matrix[k,3]]+dailyQ.matrix[k,4])}
 }
 #### Matrix construction completed!
+
+# We need to modify/restructure the daily flow data so as to account for any leap year
+data <- dailyQ.matrix
+n_yr<-length(unique(data[,1]))
+wy_data_yrs<-unique(data[,1]) 
+reshape_dailyQ <- matrix(NA,n_yr,365)
+rownames(reshape_dailyQ) <- wy_data_yrs
+colnames(reshape_dailyQ) <- 1:365
+
+for (i in 1:length(unique_years)){
+  Q_current_year <- data[data[, 1] == wy_data_yrs[i], ]
+  if(isLeapYear(Q_current_year[1,1])==T){
+    feb_28_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 28)
+    feb_29_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 29)
+    # Calculate the average for, replace the 28th Feb row with average and remove the 29th Feb row
+    average_feb2829 <- mean(c(Q_current_year[feb_28_row, 6], Q_current_year[feb_29_row, 6]))
+    Q_current_year[feb_28_row, 6] <- average_feb2829
+    Q_current_year <- Q_current_year[-feb_29_row, ]
+    reshape_dailyQ[i, ] <- Q_current_year [ ,6]
+  }else{
+    reshape_dailyQ[i, ] <- Q_current_year [ ,6]
+  }
+}
 
 # Construct IAH functions ----
 # IHA Group 1 : Monthly mean flow ===== 
@@ -103,7 +124,7 @@ IHA_Group02_Analysis<-function(data=dailyQ.matrix){
 }
 
 # IAH Group 3: Julian Dates Annual maxima Flow and Annual Minima Flow ===== 
-IHA_Group03_Analysis<-function(data=dailyQ.matrix){
+IHA_Group03_Analysis<-function(data=reshape_dailyQ){
   #' Calculates the julian date of annual maxima / minima flow condition.
   #' 2 IAH parameters (group3) (Richter et al., 1996) will be generated through IAH_Group3 function
   #' @param data A matrix with daily flow data.
@@ -111,35 +132,16 @@ IHA_Group03_Analysis<-function(data=dailyQ.matrix){
   #' @examples
   #' 
   
-  n_yr<-length(unique(data[,1]))
-  wy_data_yrs<-unique(data[,1])
+  n_yr<-dim(data)[1]
+  wy_data_yrs<-as.numeric(rownames(data))
   result_group3_timing <- data.frame(matrix(NA, ncol = 2, nrow = n_yr))
-  rownames(result_IHA_group2) <-wy_data_yrs
+  rownames(result_group3_timing) <-wy_data_yrs
   colnames(result_group3_timing)<-c("DOWYMax", "DOWYMin")
   
-  # We need to modify/restructure the daily flow data so as to account for any leap year
-  reshape_dailyQ <- matrix(NA,n_yr,365)
-  rownames(reshape_dailyQ) <- wy_data_yrs
-  colnames(reshape_dailyQ) <- 1:365
-  
-  for (i in 1:length(unique_years)){
-    Q_current_year <- data[data[, 1] == wy_data_yrs[i], ]
-    if(isLeapYear(Q_current_year[1,1])==T){
-      feb_28_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 28)
-      feb_29_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 29)
-      # Calculate the average for, replace the 28th Feb row with average and remove the 29th Feb row
-      average_feb2829 <- mean(c(Q_current_year[feb_28_row, 6], Q_current_year[feb_29_row, 6]))
-      Q_current_year[feb_28_row, 6] <- average_feb2829
-      Q_current_year <- Q_current_year[-feb_29_row, ]
-      reshape_dailyQ[i, ] <- Q_current_year [ ,6]
-    }else{
-      reshape_dailyQ[i, ] <- Q_current_year [ ,6]
-    }
-  }
   # Main code for estimating the dowy for annual maxima and minima
   for (i in 1:n_yr) {
     # Extract flow values for the current year
-    flowdata_year_i <- reshape_dailyQ[i, ] 
+    flowdata_year_i <- data[i, ] 
     # Find the index of the maximum value in the row
     max_index <- which.max(flowdata_year_i)
     DOWY_max_index <- max(which.max(flowdata_year_i))
@@ -152,7 +154,7 @@ IHA_Group03_Analysis<-function(data=dailyQ.matrix){
 }
 
 # IAH Group 4: Magnitude and Frequency of high and Low flow ===== 
-IHA_Group04_Analysis<-function(data=dailyQ.matrix){
+IHA_Group04_Analysis<-function(data=reshape_dailyQ){
   #' Calculates the frequency and mean duration for high/low flow pulses.
   #' High and low threshold are 75th and 25th annual flow respectively.
   #' 4 IAH parameters (group3) (Richter et al., 1996) will be generated through IAH_Group4 function
@@ -161,39 +163,17 @@ IHA_Group04_Analysis<-function(data=dailyQ.matrix){
   #' @examples
   #'
   
-  n_yr<-length(unique(data[,1]))
-  wy_data_yrs<-unique(data[,1])
-  result_group3_timing <- data.frame(matrix(NA, ncol = 2, nrow = n_yr))
-  rownames(result_IHA_group2) <-wy_data_yrs
-  colnames(result_group3_timing)<-c("DOWYMax", "DOWYMin")
+  n_yr<-dim(data)[1]
+  wy_data_yrs<-as.numeric(rownames(data))
   
-  # We need to modify/restructure the daily flow data so as to account for any leap year
-  reshape_dailyQ <- matrix(NA,n_yr,365)
-  rownames(reshape_dailyQ) <- wy_data_yrs
-  colnames(reshape_dailyQ) <- 1:365
-  
-  for (i in 1:length(unique_years)){
-    Q_current_year <- data[data[, 1] == wy_data_yrs[i], ]
-    if(isLeapYear(Q_current_year[1,1])==T){
-      feb_28_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 28)
-      feb_29_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 29)
-      # Calculate the average for, replace the 28th Feb row with average and remove the 29th Feb row
-      average_feb2829 <- mean(c(Q_current_year[feb_28_row, 6], Q_current_year[feb_29_row, 6]))
-      Q_current_year[feb_28_row, 6] <- average_feb2829
-      Q_current_year <- Q_current_year[-feb_29_row, ]
-      reshape_dailyQ[i, ] <- Q_current_year [ ,6]
-    }else{
-      reshape_dailyQ[i, ] <- Q_current_year [ ,6]
-    }
-  }
   # Main code for estimating the frequency and mean duration for annual high (low) flow pulses
   result_group4 <- data.frame(matrix(NA, ncol = 4, nrow = n_yr))
   rownames(result_group4) <- wy_data_yrs
   colnames(result_group4) <- c("MeanD_HFlow", "Freq_HFlow", "MeanD_LFlow", "Freq_LFlow")
   
-  for (i in 1:84) {
+  for (i in 1:n_yr) {
     # Extract flow values for the current year
-    flowdata_year_i <- reshape_dailyQ[i, ]  
+    flowdata_year_i <- data[i, ]  
     
     #Find the quantiles (25th, and 75th percentiles) of the vector
     quant_values_year_i <- quantile(flowdata_year_i, probs = c(0.25,0.75))
@@ -242,8 +222,47 @@ IHA_Group04_Analysis<-function(data=dailyQ.matrix){
 }
 # =====
 # IAH Group 5: ===== 
-IHA_Group04_Analysis<-function(data=dailyQ.matrix){
+IHA_Group05_Analysis<-function(data=reshape_dailyQ){
+  n_yr<-dim(data)[1]
+  wy_data_yrs<-as.numeric(rownames(data))
+  result_group5 <- data.frame(matrix(NA, ncol = 4, nrow = n_yr))
+  rownames(result_group5)<-wy_data_yrs
+  colnames(result_group5)<-c("Mean_Pos_dif", "Mean_Neg_dif", "num_rises", "num_falls")
   
+  for (i in 1:n_yr) {
+    # Subset rows for the current year
+    flow_y <- data[i, ]
+    flow_y_df <- diff(flow_y)
+    list_pos <- NULL
+    list_df_pos <- NULL
+    list_df_neg <- NULL
+    j <- 1
+    while (j <= length(flow_y_df)){
+      if (flow_y_df[j] >= 0){
+        k <- 1
+        j <- j + 1
+        while (flow_y_df[j] >= 0 & j <= length(flow_y_df)){
+          k <- k + 1
+          j <- j + 1
+        }
+        list_df_pos <- cbind(list_df_pos, k)
+      }else{
+        k <- 1
+        j <- j + 1
+        while (flow_y_df[j] <= 0 & j <= length(flow_y_df)){
+          k <- k + 1
+          j <- j + 1
+        }
+        list_df_neg <- cbind(list_df_neg, k)
+      }
+    }
+    
+    result_group5$Mean_Pos_dif[year] <- mean((flow_y_df>0), na.rm = TRUE)
+    result_group5$Mean_Neg_dif[year] <- mean((flow_y_df<0), na.rm = TRUE)
+    result_group5$num_rises[year] <- length(list_df_pos) 
+    result_group5$num_falls[year] <- length(list_df_neg)
+  }
+  return(result_group5)
 }
 # Construction of the all the IHA functions complete
 
