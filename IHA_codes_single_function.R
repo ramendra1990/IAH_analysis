@@ -37,7 +37,7 @@ day_wy <- function(st_month_WY, yr){
   mo_days <- c(0,cumsum(mo_days)[1:11])
   if (st_month_WY != 1){
     indx_dec <- 12 - st_month_WY + 1 # Index of December
-    mo_days <- mo_days[c(indx_dec + 1:12, 1:indx_dec)]
+    mo_days <- mo_days[c((indx_dec + 1):12, 1:indx_dec)]
   }
   return(mo_days)
 }
