@@ -1,3 +1,93 @@
+# Function for the number of days in any month
+daysinmonth <- function(seqmonth){
+  return(as.vector(days_in_month(seqmonth)))
+}
+
+day_wy <- function(st_month_WY, yr){
+  mo_days <- vector(mode = 'integer', length = 12)
+  if (isLeapYear(yr) == F){
+    
+    for (i in 1:length(mo_days)){
+      seqmonth <- i + st_month_WY - 1
+      if ((seqmonth) <= 12){
+        mo_days[i] <- daysinmonth(seqmonth)
+      }else{
+        mo_days[i] <- daysinmonth(seqmonth - 12) # subtracting 12 returns to january
+      }
+    }
+  }else{
+
+    for (i in 1:length(mo_days)){
+      seqmonth <- i + st_month_WY - 1
+      if (seqmonth <= 12){
+        if (seqmonth == 2){
+          mo_days[i] <- daysinmonth(seqmonth) + 1
+        }else{
+          mo_days[i] <- daysinmonth(seqmonth)
+        }
+      }else{
+        if ((seqmonth - 12) == 2){
+          mo_days[i] <- daysinmonth(seqmonth - 12) + 1
+        }else{
+          mo_days[i] <- daysinmonth(seqmonth - 12) # subtracting 12 returns to january
+        }
+      }
+    }
+  }
+  mo_days <- c(0,cumsum(mo_days)[1:11])
+  if (st_month_WY != 1){
+    indx_dec <- 12 - st_month_WY + 1 # Index of December
+    mo_days <- mo_days[c(indx_dec + 1:12, 1:indx_dec)]
+  }
+  return(mo_days)
+}
+
+mo_days <- c(0,cumsum(c(30,31,31,30,31,30,31,31,28,31,30,31))[1:11])[c(8:12, 1:7)]
+# Leap year: cumulative days for months starting from June
+mo_days_l <- c(0,cumsum(c(30,31,31,30,31,30,31,31,29,31,30,31))[1:11])[c(8:12,1:7)]
+n1 <- dim(daily_Q_mat)[1]
+for(k in 1:n1){
+  print(k)
+  if(isLeapYear(daily_Q_mat[k,2])==T) {daily_Q_mat[k,5]<-(mo_days_l[daily_Q_mat[k,3]]+daily_Q_mat[k,4])}
+  else {daily_Q_mat[k,5]<-(mo_days[daily_Q_mat[k,3]]+daily_Q_mat[k,4])}
+}
+
+# Prepare WRIS data for Indian rivers to daily flow format
+WRIS2dailyQ <- function(data, st_month_WY = 6){
+  cal_date <- data[, 1]
+  # Split the date column and create new columns for day, month, and year
+  date_parts <- sapply(strsplit(as.character(cal_date ), "/"), function(x) as.numeric(x))
+  date_parts_sep <- t(date_parts) # transverse of date_parts
+  nnn <- dim(data)[1]
+  date_Q_mat <- matrix(NA, nrow = nnn, ncol = 4)
+  colnames(date_Q_mat) <- c('Day', 'Month', ' Year', 'Discharge')
+  date_Q_mat[,1] <- date_parts_sep[,1]
+  date_Q_mat[,2] <- date_parts_sep[,2]
+  date_Q_mat[,3] <- date_parts_sep[,3]
+  date_Q_mat[,4] <- data[, 4]
+  # To covert it into water year format, we need to add water year and day of wateryear columns
+  daily_Q_mat <- matrix(NA, dim(date_Q_mat)[1],6)
+  colnames(daily_Q_mat) <- c("WY","Year","Month","Day","DOWY","Q") # this has to be the format for the IAH functions input
+  daily_Q_mat[,2]<- date_Q_mat[,3] # year
+  daily_Q_mat[,3]<- date_Q_mat[,2]# month
+  daily_Q_mat[,4]<- date_Q_mat[,1] # day of month
+  daily_Q_mat[,1]<- ifelse(date_Q_mat[,2] < st_month_WY, date_Q_mat[,3], date_Q_mat[,3] + 1) # Water year in India starts on June 1st to 31st May
+  daily_Q_mat[,6]<- date_Q_mat[,4] # discharge
+  # For dowy
+  # Calculate DOWY for each row
+  # Non-leap year: cumulative days for months starting from June
+  mo_days <- c(0,cumsum(c(30,31,31,30,31,30,31,31,28,31,30,31))[1:11])[c(8:12, 1:7)]
+  # Leap year: cumulative days for months starting from June
+  mo_days_l <- c(0,cumsum(c(30,31,31,30,31,30,31,31,29,31,30,31))[1:11])[c(8:12,1:7)]
+  n1 <- dim(daily_Q_mat)[1]
+  for(k in 1:n1){
+    print(k)
+    if(isLeapYear(daily_Q_mat[k,2])==T) {daily_Q_mat[k,5]<-(mo_days_l[daily_Q_mat[k,3]]+daily_Q_mat[k,4])}
+    else {daily_Q_mat[k,5]<-(mo_days[daily_Q_mat[k,3]]+daily_Q_mat[k,4])}
+  }
+  return(daily_Q_mat)
+}
+
 # Prepare USGS station data to daily flow format
 USGS2dailyQ <- function(rawDailyQ){
   n1 <- dim(rawDailyQ)[1]
