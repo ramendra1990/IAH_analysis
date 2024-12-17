@@ -182,7 +182,7 @@ IHA_Group02_Analysis<-function(data=dailyQ.matrix){
   colnames(result_IHA_group2) <-c("Max_1daymean", "Max_3daymean", "Max_7daymean", "Max_30daymean", "Max_90daymean", 
                                   "Min_1daymean", "Min_3daymean", "Min_7daymean", "Min_30daymean", "Min_90daymean")
   for (i in 1:n_yr){
-    flowdata_year_i <- dailyQ.matrix[dailyQ.matrix[,1]==wy_data_yrs[i], 6] # subsetting the 6th column data (flow data) for the ith water year
+    flowdata_year_i <- data[data[,1]==wy_data_yrs[i], 6] # subsetting the 6th column data (flow data) for the ith water year
     # Calculating moving average with the rollapply function from the zoo library for different width
     subset_3day <- rollapply(flowdata_year_i, width = 3, FUN = mean, partial = TRUE, align = "right")
     subset_7day <- rollapply(flowdata_year_i, width = 7, FUN = mean, partial = TRUE, align = "right")
@@ -194,11 +194,11 @@ IHA_Group02_Analysis<-function(data=dailyQ.matrix){
     result_IHA_group2$Max_7daymean[i] <- max(subset_7day)
     result_IHA_group2$Max_30daymean[i] <- max(subset_30day)
     result_IHA_group2$Max_90daymean[i] <- max(subset_90day)
-    result_IHA_group2$Max_1daymean[i] <- min(flowdata_year_i)
-    result_IHA_group2$Max_3daymean[i] <- min(subset_3day)
-    result_IHA_group2$Max_7daymean[i] <- min(subset_7day)
-    result_IHA_group2$Max_30daymean[i] <- min(subset_30day)
-    result_IHA_group2$Max_90daymean[i] <- min(subset_90day)
+    result_IHA_group2$Min_1daymean[i] <- min(flowdata_year_i)
+    result_IHA_group2$Min_3daymean[i] <- min(subset_3day)
+    result_IHA_group2$Min_7daymean[i] <- min(subset_7day)
+    result_IHA_group2$Min_30daymean[i] <- min(subset_30day)
+    result_IHA_group2$Min_90daymean[i] <- min(subset_90day)
   }
   return(result_IHA_group2)
 }
@@ -212,9 +212,10 @@ IHA_Group03_Analysis<-function(data=dailyQ.matrix){
   #' @examples
   #' 
   
-  data <- averageLeapYear(data) # Since we don't need monthly information. This is just a daily data for each year
-  n_yr<-dim(data)[1]
-  wy_data_yrs<-as.numeric(rownames(data))
+  # data <- averageLeapYear(data) # Since we don't need monthly information. This is just a daily data for each year
+  n_yr<-length(unique(data[,1]))
+  wy_data_yrs<-unique(data[,1])
+  # wy_data_yrs<-as.numeric(rownames(data))
   result_group3_timing <- data.frame(matrix(NA, ncol = 2, nrow = n_yr))
   rownames(result_group3_timing) <- wy_data_yrs
   colnames(result_group3_timing)<- c("DOWYMax", "DOWYMin")
@@ -222,7 +223,7 @@ IHA_Group03_Analysis<-function(data=dailyQ.matrix){
   # Main code for estimating the dowy for annual maxima and minima
   for (i in 1:n_yr) {
     # Extract flow values for the current year
-    flowdata_year_i <- data[i, ] 
+    flowdata_year_i <- data[data[,1] == wy_data_yrs[i], 6] 
     # Find the index of the maximum value in the row
     max_index <- which.max(flowdata_year_i)
     DOWY_max_index <- max(which.max(flowdata_year_i))
@@ -244,9 +245,8 @@ IHA_Group04_Analysis<-function(data=dailyQ.matrix){
   #' @examples
   #'
   
-  data <- averageLeapYear(data)
-  n_yr<-dim(data)[1]
-  wy_data_yrs<-as.numeric(rownames(data))
+  n_yr<-length(unique(data[,1]))
+  wy_data_yrs<-unique(data[,1])
   
   # Main code for estimating the frequency and mean duration for annual high (low) flow pulses
   result_group4 <- data.frame(matrix(NA, ncol = 4, nrow = n_yr))
@@ -255,7 +255,7 @@ IHA_Group04_Analysis<-function(data=dailyQ.matrix){
   
   for (i in 1:n_yr) {
     # Extract flow values for the current year
-    flowdata_year_i <- data[i, ]  
+    flowdata_year_i <- data[data[,1] == wy_data_yrs[i], 6]  
     
     #Find the quantiles (25th, and 75th percentiles) of the vector
     quant_values_year_i <- quantile(flowdata_year_i, probs = c(0.25,0.75))
@@ -311,17 +311,16 @@ IHA_Group05_Analysis<-function(data=dailyQ.matrix){
   #' @param data A matrix with daily flow data.
   #' @return mean and frequency of rise (fall) of the daily flow data in `data`.
   
-  data <- averageLeapYear(data)
-  n_yr<-dim(data)[1]
-  wy_data_yrs<-as.numeric(rownames(data))
+  n_yr<-length(unique(data[,1]))
+  wy_data_yrs<-unique(data[,1])
   result_group5 <- data.frame(matrix(NA, ncol = 4, nrow = n_yr))
   rownames(result_group5)<-wy_data_yrs
   colnames(result_group5)<-c("Mean_Pos_dif", "Mean_Neg_dif", "num_rises", "num_falls")
   
   for (i in 1:n_yr) {
     # Subset rows for the current year
-    flow_y <- data[i, ]
-    flow_y_df <- diff(flow_y)
+    flowdata_year_i <- data[data[,1] == wy_data_yrs[i], 6]
+    flow_y_df <- diff(flowdata_year_i)
     list_pos <- NULL
     list_df_pos <- NULL
     list_df_neg <- NULL
@@ -346,10 +345,10 @@ IHA_Group05_Analysis<-function(data=dailyQ.matrix){
       }
     }
     
-    result_group5$Mean_Pos_dif[year] <- mean((flow_y_df>0), na.rm = TRUE)
-    result_group5$Mean_Neg_dif[year] <- mean((flow_y_df<0), na.rm = TRUE)
-    result_group5$num_rises[year] <- length(list_df_pos) 
-    result_group5$num_falls[year] <- length(list_df_neg)
+    result_group5$Mean_Pos_dif[i] <- mean((flow_y_df>0), na.rm = TRUE)
+    result_group5$Mean_Neg_dif[i] <- mean((flow_y_df<0), na.rm = TRUE)
+    result_group5$num_rises[i] <- length(list_df_pos) 
+    result_group5$num_falls[i] <- length(list_df_neg)
   }
   return(result_group5)
 }
