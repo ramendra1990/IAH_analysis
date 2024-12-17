@@ -3,6 +3,7 @@ daysinmonth <- function(seqmonth){
   return(as.vector(days_in_month(seqmonth)))
 }
 
+# Function for day of water year calculation
 day_wy <- function(st_month_WY, yr){
   mo_days <- vector(mode = 'integer', length = 12)
   if (isLeapYear(yr) == F){
@@ -42,16 +43,6 @@ day_wy <- function(st_month_WY, yr){
   return(mo_days)
 }
 
-mo_days <- c(0,cumsum(c(30,31,31,30,31,30,31,31,28,31,30,31))[1:11])[c(8:12, 1:7)]
-# Leap year: cumulative days for months starting from June
-mo_days_l <- c(0,cumsum(c(30,31,31,30,31,30,31,31,29,31,30,31))[1:11])[c(8:12,1:7)]
-n1 <- dim(daily_Q_mat)[1]
-for(k in 1:n1){
-  print(k)
-  if(isLeapYear(daily_Q_mat[k,2])==T) {daily_Q_mat[k,5]<-(mo_days_l[daily_Q_mat[k,3]]+daily_Q_mat[k,4])}
-  else {daily_Q_mat[k,5]<-(mo_days[daily_Q_mat[k,3]]+daily_Q_mat[k,4])}
-}
-
 # Prepare WRIS data for Indian rivers to daily flow format
 WRIS2dailyQ <- function(data, st_month_WY = 6){
   cal_date <- data[, 1]
@@ -73,17 +64,14 @@ WRIS2dailyQ <- function(data, st_month_WY = 6){
   daily_Q_mat[,4]<- date_Q_mat[,1] # day of month
   daily_Q_mat[,1]<- ifelse(date_Q_mat[,2] < st_month_WY, date_Q_mat[,3], date_Q_mat[,3] + 1) # Water year in India starts on June 1st to 31st May
   daily_Q_mat[,6]<- date_Q_mat[,4] # discharge
+
   # For dowy
   # Calculate DOWY for each row
-  # Non-leap year: cumulative days for months starting from June
-  mo_days <- c(0,cumsum(c(30,31,31,30,31,30,31,31,28,31,30,31))[1:11])[c(8:12, 1:7)]
-  # Leap year: cumulative days for months starting from June
-  mo_days_l <- c(0,cumsum(c(30,31,31,30,31,30,31,31,29,31,30,31))[1:11])[c(8:12,1:7)]
   n1 <- dim(daily_Q_mat)[1]
   for(k in 1:n1){
-    print(k)
-    if(isLeapYear(daily_Q_mat[k,2])==T) {daily_Q_mat[k,5]<-(mo_days_l[daily_Q_mat[k,3]]+daily_Q_mat[k,4])}
-    else {daily_Q_mat[k,5]<-(mo_days[daily_Q_mat[k,3]]+daily_Q_mat[k,4])}
+    # print(k)
+    mo_days <- day_wy(st_month_WY = 6, daily_Q_mat[k,2])
+    daily_Q_mat[k,5] <- mo_days[daily_Q_mat[k,3]]+daily_Q_mat[k,4]
   }
   return(daily_Q_mat)
 }
