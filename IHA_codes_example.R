@@ -12,8 +12,12 @@ rawDailyQ <- readNWISdv(site_id, pCode, startDate, endDate) # raw flow data from
 # Import functions from IHA_codes_single_function.R
 source("IHA_codes_single_function.R")
 dailyQ.matrix1 <- USGS2dailyQ(rawDailyQ, st_month_WY = 5)
-reshape_dailyQ1 <- averageLeapYear(dailyQ.matrix1)
+# reshape_dailyQ1 <- averageLeapYear(dailyQ.matrix1) # Not needed really. Operations can be done using dailyQ
 res_grp1 <- IHA_Group01_Analysis(dailyQ.matrix1, st_month_WY = 5)
+res_grp2 <- IHA_Group02_Analysis(dailyQ.matrix1)
+res_grp3 <- IHA_Group03_Analysis(dailyQ.matrix1)
+res_grp4 <- IHA_Group04_Analysis(dailyQ.matrix1)
+res_grp5 <- IHA_Group05_Analysis(dailyQ.matrix1)
 # Create a Daily discharge matrix from the rawQ ----
 n1 <- dim(rawDailyQ)[1]
 dailyQ.matrix<-matrix(NA,n1,6)
@@ -64,3 +68,6 @@ for (i in 1:length(unique_years)){
     reshape_dailyQ[i, ] <- Q_current_year [ ,6]
   }
 }
+
+# Merge all the dataframes to have a unified result matrix for all the IHA metrics
+lst <- list(res_grp1, res_grp2, res_grp3)
