@@ -1,10 +1,12 @@
 # Function for the number of days in any month
 daysinmonth <- function(seqmonth){
+  library(lubridate)
   return(as.vector(days_in_month(seqmonth)))
 }
 
 # Function for day of water year calculation
 day_wy <- function(st_month_WY, yr){
+  library(tis)
   mo_days <- vector(mode = 'integer', length = 12)
   if (isLeapYear(yr) == F){
     
@@ -62,7 +64,7 @@ WRIS2dailyQ <- function(data, st_month_WY = 6){
   daily_Q_mat[,2]<- date_Q_mat[,3] # year
   daily_Q_mat[,3]<- date_Q_mat[,2]# month
   daily_Q_mat[,4]<- date_Q_mat[,1] # day of month
-  daily_Q_mat[,1]<- ifelse(date_Q_mat[,2] < st_month_WY, date_Q_mat[,3], date_Q_mat[,3] + 1) # Water year in India starts on June 1st to 31st May
+  daily_Q_mat[,1]<- ifelse(date_Q_mat[,2] < st_month_WY, date_Q_mat[,3], date_Q_mat[,3] + 1)
   daily_Q_mat[,6]<- date_Q_mat[,4] # discharge
 
   # For dowy
@@ -70,36 +72,36 @@ WRIS2dailyQ <- function(data, st_month_WY = 6){
   n1 <- dim(daily_Q_mat)[1]
   for(k in 1:n1){
     # print(k)
-    mo_days <- day_wy(st_month_WY = 6, daily_Q_mat[k,2])
+    mo_days <- day_wy(st_month_WY, daily_Q_mat[k,2])
     daily_Q_mat[k,5] <- mo_days[daily_Q_mat[k,3]]+daily_Q_mat[k,4]
   }
   return(daily_Q_mat)
 }
 
 # Prepare USGS station data to daily flow format
-USGS2dailyQ <- function(rawDailyQ){
+USGS2dailyQ <- function(rawDailyQ, st_month_WY = 6){
   n1 <- dim(rawDailyQ)[1]
   dailyQ.matrix<-matrix(NA,n1,6)
   colnames(dailyQ.matrix)<-c("WY","Year","Month","Day","DOWY","Q") # this has to be the format for the IAH functions input
   dailyQ.matrix[,6]<-as.vector(rawDailyQ[,4])
-  dailyQ.matrix[,1]<-calcWaterYear(rawDailyQ[,3])
+  # dailyQ.matrix[,1]<-calcWaterYear(rawDailyQ[,3])
+  
   # Filling up day, month, year column in the daily Q matrix
   for(k in 1:n1){
-    print(k)
+    # print(k)
     a1<-strsplit(as.character(rawDailyQ[k,3]),"-")
     dailyQ.matrix[k,2]<-as.numeric(a1[[1]][1])
     dailyQ.matrix[k,3]<-as.numeric(a1[[1]][2])
     dailyQ.matrix[k,4]<-as.numeric(a1[[1]][3])
   }
-  # For the 5th column, i.e. day of water year (dowy), specific to USA
-  library(tis) # for cumulative sum method
-  # dowy. These two lines have to be changed according to requirements
-  mo.days<-c(0,cumsum(c(31,30,31,31,28,31,30,31,30,31,31,30))[1:11])[c(4:12,1:3)] # for normal year
-  mo.days.l<-c(0,cumsum(c(31,30,31,31,29,31,30,31,30,31,31,30))[1:11])[c(4:12,1:3)] # for a leap year
+  dailyQ.matrix[,1]<- ifelse(dailyQ.matrix[,3] < st_month_WY, dailyQ.matrix[,2], dailyQ.matrix[,2] + 1)
+  # For dowy
+  # Calculate DOWY for each row
+  n1 <- dim(dailyQ.matrix)[1]
   for(k in 1:n1){
-    print(k)
-    if(isLeapYear(dailyQ.matrix[k,1])==T) {dailyQ.matrix[k,5]<-(mo.days.l[dailyQ.matrix[k,3]]+dailyQ.matrix[k,4])}
-    else {dailyQ.matrix[k,5]<-(mo.days[dailyQ.matrix[k,3]]+dailyQ.matrix[k,4])}
+    # print(k)
+    mo_days <- day_wy(st_month_WY, dailyQ.matrix[k,2])
+    dailyQ.matrix[k,5] <- mo_days[dailyQ.matrix[k,3]]+dailyQ.matrix[k,4]
   }
   #### Matrix construction completed!
   return(dailyQ.matrix)
@@ -115,6 +117,7 @@ averageLeapYear<-function(dailyQ.matrix){
   rownames(reshape_dailyQ) <- wy_data_yrs
   colnames(reshape_dailyQ) <- 1:365
   for (i in 1:length(unique_years)){
+    print(i)
     Q_current_year <- data[data[, 1] == wy_data_yrs[i], ]
     if(isLeapYear(Q_current_year[1,1])==T){
       feb_28_row <- which(Q_current_year[,3] == 2 & Q_current_year[,4] == 28)
@@ -133,7 +136,7 @@ averageLeapYear<-function(dailyQ.matrix){
 
 # Construct IAH functions ----
 # IHA Group 1 : Monthly mean flow ===== 
-IHA_Group01_Analysis<-function(data=dailyQ.matrix){
+IHA_Group01_Analysis<-function(data=dailyQ.matrix, st_month_WY = 6){
   #' Calculates the Monthly mean flow for all water years.
   #' 12 IAH parameters (group1) (Richter et al., 1996) will be generated through IAH_Group1 function
   #' @param data A matrix with daily flow data.
@@ -146,8 +149,12 @@ IHA_Group01_Analysis<-function(data=dailyQ.matrix){
   wy_data_yrs<-unique(data[,1])
   result_monthlymean <- data.frame(matrix(NA, ncol = 12, nrow = n_yr))
   rownames(result_monthlymean)<-wy_data_yrs
-  colnames(result_monthlymean)<-c(10,11,12,1,2,3,4,5,6,7,8,9)
-  mo_seq<-c(10:12,1:9)
+  mo_seq<-{if (st_month_WY != 1){
+            c(st_month_WY:12,1:(st_month_WY-1))
+          }else{
+            c(1:12)
+          }}
+  colnames(result_monthlymean) <- mo_seq
   
   for (i in 1:length(wy_data_yrs)) 
     {for (k in 1:12){
@@ -197,7 +204,7 @@ IHA_Group02_Analysis<-function(data=dailyQ.matrix){
 }
 
 # IAH Group 3: Julian Dates Annual maxima Flow and Annual Minima Flow ===== 
-IHA_Group03_Analysis<-function(data=reshape_dailyQ){
+IHA_Group03_Analysis<-function(data=dailyQ.matrix){
   #' Calculates the julian date of annual maxima / minima flow condition.
   #' 2 IAH parameters (group3) (Richter et al., 1996) will be generated through IAH_Group3 function
   #' @param data A matrix with daily flow data.
@@ -205,11 +212,12 @@ IHA_Group03_Analysis<-function(data=reshape_dailyQ){
   #' @examples
   #' 
   
+  data <- averageLeapYear(data) # Since we don't need monthly information. This is just a daily data for each year
   n_yr<-dim(data)[1]
   wy_data_yrs<-as.numeric(rownames(data))
   result_group3_timing <- data.frame(matrix(NA, ncol = 2, nrow = n_yr))
-  rownames(result_group3_timing) <-wy_data_yrs
-  colnames(result_group3_timing)<-c("DOWYMax", "DOWYMin")
+  rownames(result_group3_timing) <- wy_data_yrs
+  colnames(result_group3_timing)<- c("DOWYMax", "DOWYMin")
   
   # Main code for estimating the dowy for annual maxima and minima
   for (i in 1:n_yr) {
@@ -227,15 +235,16 @@ IHA_Group03_Analysis<-function(data=reshape_dailyQ){
 }
 
 # IAH Group 4: Magnitude and Frequency of high and Low flow ===== 
-IHA_Group04_Analysis<-function(data=reshape_dailyQ){
+IHA_Group04_Analysis<-function(data=dailyQ.matrix){
   #' Calculates the frequency and mean duration for high/low flow pulses.
   #' High and low threshold are 75th and 25th annual flow respectively.
-  #' 4 IAH parameters (group3) (Richter et al., 1996) will be generated through IAH_Group4 function
+  #' 4 IAH parameters (group4) (Richter et al., 1996) will be generated through IAH_Group4 function
   #' @param data A matrix with daily flow data.
   #' @return Frequency and mean duration of high and low pulses of the daily flow data in `data`.
   #' @examples
   #'
   
+  data <- averageLeapYear(data)
   n_yr<-dim(data)[1]
   wy_data_yrs<-as.numeric(rownames(data))
   
@@ -295,7 +304,14 @@ IHA_Group04_Analysis<-function(data=reshape_dailyQ){
 }
 
 # IAH Group 5: ===== 
-IHA_Group05_Analysis<-function(data=reshape_dailyQ){
+IHA_Group05_Analysis<-function(data=dailyQ.matrix){
+  #' Calculates the mean of flow rise and flow fall along with the frequency of these rises (falls).
+  #' one rise (fall) event is calculated from the beginning of a rise event to the start of next fall (ans so on)
+  #' 4 IAH parameters (group5) (Richter et al., 1996) will be generated through IAH_Group5 function
+  #' @param data A matrix with daily flow data.
+  #' @return mean and frequency of rise (fall) of the daily flow data in `data`.
+  
+  data <- averageLeapYear(data)
   n_yr<-dim(data)[1]
   wy_data_yrs<-as.numeric(rownames(data))
   result_group5 <- data.frame(matrix(NA, ncol = 4, nrow = n_yr))

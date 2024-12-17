@@ -9,6 +9,11 @@ endDate <- "2022-09-30"
 pCode <- "00060"
 rawDailyQ <- readNWISdv(site_id, pCode, startDate, endDate) # raw flow data from 1938 1st Oct to 2022 30th Sept
 
+# Import functions from IHA_codes_single_function.R
+source("IHA_codes_single_function.R")
+dailyQ.matrix1 <- USGS2dailyQ(rawDailyQ, st_month_WY = 5)
+reshape_dailyQ1 <- averageLeapYear(dailyQ.matrix1)
+res_grp1 <- IHA_Group01_Analysis(dailyQ.matrix1, st_month_WY = 5)
 # Create a Daily discharge matrix from the rawQ ----
 n1 <- dim(rawDailyQ)[1]
 dailyQ.matrix<-matrix(NA,n1,6)
@@ -34,6 +39,8 @@ for(k in 1:n1){
   else {dailyQ.matrix[k,5]<-(mo.days[dailyQ.matrix[k,3]]+dailyQ.matrix[k,4])}
 }
 #### Matrix construction completed!
+
+
 
 # We need to modify/restructure the daily flow data so as to account for any leap year
 data <- dailyQ.matrix
