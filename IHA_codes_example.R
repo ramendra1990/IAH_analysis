@@ -70,4 +70,16 @@ for (i in 1:length(unique_years)){
 }
 
 # Merge all the dataframes to have a unified result matrix for all the IHA metrics
-lst <- list(res_grp1, res_grp2, res_grp3)
+# Function to merge outputs for different IHA functions
+merge_all <- function(x, ..., by = "row.names") {
+  L <- list(...)
+  for (i in seq_along(L)) {
+    x <- merge(x, L[[i]], by = by)
+    rownames(x) <- x$Row.names
+    x$Row.names <- NULL
+  }
+  return(x)
+}
+
+res <- merge_all(res_grp1, res_grp2, res_grp3, 
+                 res_grp4, res_grp5)
