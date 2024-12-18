@@ -354,4 +354,6 @@ IHA_Group05_Analysis<-function(data=dailyQ.matrix){
 }
 # Construction of the all the IHA functions complete
 
+ 
+
 
